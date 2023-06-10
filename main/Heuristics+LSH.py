@@ -704,6 +704,44 @@ def find_best_cluster(bands_clusters,data):
       break
   return max_cluster, max
 
+def find_best_approx_cluster(bands_clusters):
+  max = -float('inf')
+  max_cluster= None
+  for cluster in bands_clusters:
+    # scr = score(data, cluster)
+    scr = approx_score(data, cluster)
+    if scr > max:
+      max = scr
+      max_cluster = cluster
+    if scr == 0:
+      break
+  return max_cluster, max
+
+def approx_score(data, cluster):
+
+    score = 0
+    nodes = len(data)
+    nodes_sqrt = int(nodes ** (1/2))
+
+    # a perm. of size n
+    permutation = np.arange(nodes_sqrt).astype(int)
+    shuffle(permutation)
+    
+
+    for i in permutation:
+        for j in range(nodes):
+            # if i and j are similar and not in a same cluster
+            if data[i][j] == 1:
+                # and not in the same cluster
+                
+                if cluster[i] != cluster[j]: score -= 1
+            # else if they are not similar
+            else:
+                # and in the same cluster
+                if cluster[i] == cluster[j]: score -= 1
+
+    return score * nodes_sqrt
+
 def LSH_simmilarity_matrix_permutation_arr(num_iter, data, row_num, band_num):
     #initialize
     best_cluster = None
@@ -771,17 +809,15 @@ def regular_LSH(num_iter, data, row_num, band_num, sigs_num):
     for i in range(band_num):
       band_cluster = [0] * nodes
       for j, sig in enumerate(sigs):
-        try:
-          lsh = int(''.join(map(str,sig[i*row_num: (i+1)*row_num])), 10) % nodes
-        except:
-          print(''.join(map(str,sig[i*row_num: (i+1)*row_num])))
+        lsh = int(''.join(map(str,sig[i*row_num: (i+1)*row_num])), 10) % nodes
         band_cluster[j] = lsh
       bands_clusters.append(band_cluster)
-    cluster, scr = find_best_cluster(bands_clusters,data)
+    cluster, scr = find_best_cluster(bands_clusters)
     if scr > best_score:
       best_score = scr
       best_cluster = cluster
-  return best_score, best_cluster
+  return best_score
+
 
 def LSH_singular_diff(num_iter, data, row_num, band_num, treshold, is_log = True):
     
@@ -840,6 +876,39 @@ def make_adjacecy_matrix(graph):
         adjacecy_matrix[v][u] = 1
     return adjacecy_matrix
 
+def regulara_approx_LSH(num_iter, data, row_num, band_num, sigs_num):
+  #initialize
+  best_cluster = None
+  best_score = -float('inf')
+  nodes = len(data)
+
+  for _ in tqdm(range(num_iter)):
+    # we create 20 minhash vectors
+    minhash_funcs = build_minhash_func(len(data), sigs_num)
+
+    # now create signatures
+    sigs = []
+    for i in range(len(data)):
+      sigs.append(create_hash(minhash_funcs, data[i]))
+    # print(len(sigs), len(sigs[0]))
+    bands_clusters = []
+    # print(band_num)
+    for i in range(band_num):
+      band_cluster = [0] * nodes
+      for j, sig in enumerate(sigs):
+        # print(''.join(map(str,sig[i*row_num: (i+1)*row_num])))
+        # print(sig[i*row_num: (i+1)*row_num])
+        lsh = int(''.join(map(str,sig[i*row_num: (i+1)*row_num])), 10) #% nodes
+
+        if len(sig[i*row_num: (i+1)*row_num]) == 0: break
+        band_cluster[j] = lsh
+      bands_clusters.append(band_cluster)
+    cluster, scr = find_best_approx_cluster(bands_clusters)
+    if scr > best_score:
+      best_score = scr
+      best_cluster = cluster
+  return fast_score(data, best_cluster)
+    
 def run_LSH(dataset_name):
     print(f"Reading dataset: {dataset_name}")
     dataset = read_dataset(dataset_name)
@@ -874,6 +943,8 @@ def run_LSH(dataset_name):
         for num_iter in choosed_iterations:
             print(num_iter)
             total_num_sigs=30
+            row_num = node_log
+            band_num = total_num_sigs // row_num
             start_time = process_time()
             score, cluster = regular_LSH(num_iter, adjacecy_matrix, row_num, band_num, total_num_sigs)
             end_time = process_time()
