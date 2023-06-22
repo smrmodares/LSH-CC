@@ -1,2 +1,3 @@
-# MMDS-project
-Implementation of the final project of "Advanced Data Mining" course held in 2023 spring in TeIAS.
+# LSH-CC
+implementing proposed algorithms LSH-CC and Random Row, to solve correlation clustering task.
+Also implementing vote and pivot algorithms for comparison
